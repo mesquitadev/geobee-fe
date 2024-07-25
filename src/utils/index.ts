@@ -35,7 +35,8 @@ export function calcularRaioVoo({
 }: CalcularRaioVooProps) {
   let raioVooKM: number
   let raioVooDEC: number
-  if (tipoCadastro === 'meliponicultor') {
+  console.log('especie', especie)
+  if (tipoCadastro === 'MELIPONICULTOR') {
     switch (especie) {
       case 'Frieseomelitta silvestrii':
       case 'Frieseomelitta longipes':

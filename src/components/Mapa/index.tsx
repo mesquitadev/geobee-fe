@@ -1,69 +1,11 @@
 import 'leaflet/dist/leaflet.css'
 import omnivore from 'leaflet-omnivore'
 import kml from './geobee-2023.kml'
-import json from './geobee.geojson'
 import * as turf from '@turf/turf'
 import L from 'leaflet'
 
 import { useEffect, useRef } from 'react'
 import { calcularRaioVoo, exibirPorTipo, getColor } from '../../utils'
-
-async function processGeoJSON(geojsonUrl: string) {
-  try {
-    const response = await fetch(geojsonUrl)
-    const geojsonData = await response.json()
-
-    const centro = turf.point([Number(longitude), Number(latitude)])
-    const { raioVooKM, raioVooDEC } = calcularRaioVoo({
-      tipoCadastro: businessData.role,
-    })
-    const buffer = turf.buffer(centro, raioVooDEC, { units: 'kilometers' })
-
-    const layers = geojsonData.features
-
-    // Seta cores do mapa
-    layers.forEach((layer) => {
-      if (layer.properties) {
-        const cor = getColor(layer.properties.VEGETAÇÃ)
-        layer.properties.fillColor = cor
-        layer.properties.color = cor
-      }
-    })
-
-    // Verifica camadas do buffer
-    const featuresDentroBuffer = layers.filter((layer) => {
-      return turf.booleanIntersects(layer, buffer)
-    })
-
-    const areas = {}
-    featuresDentroBuffer.forEach((layer) => {
-      const nomeCamada = layer.properties.VEGETACAO
-      const area = parseFloat(layer.properties['AREA (Ha)'])
-
-      if (!areas[nomeCamada]) {
-        areas[nomeCamada] = 0
-      }
-      areas[nomeCamada] += area
-    })
-
-    const areaTotal =
-      (areas.URBANO || 0) + (areas.ARBUSTIVO || 0) + (areas.HERBACEO || 0)
-    const suporteApicultura = calcularCapacidadeSuporteApicultura(areaTotal)
-    const pasto = calcularCapacidadeSuporteMeliponicultura(
-      Number(areas.ARBOREO),
-    )
-
-    if (userData.role === 'APICULTOR') {
-      exibirPorTipo('apicultor', suporteApicultura)
-    } else if (userData.role === 'MELIPONICULTOR') {
-      exibirPorTipo('meliponicultor', pasto)
-    }
-
-    return geojsonData
-  } catch (error) {
-    console.error('Erro ao processar GeoJSON:', error)
-  }
-}
 
 const calcularCapacidadeSuporteApicultura = (areaTotal: number) => {
   const capacidadeSuporte = areaTotal / 7.07
@@ -78,6 +20,57 @@ function calcularCapacidadeSuporteMeliponicultura(hectares: number) {
   return Math.round(colmeiasPorHectare)
 }
 
+async function processGeoJSON(
+  geojsonUrl,
+  latitude,
+  longitude,
+  businessData,
+  userData,
+) {
+  try {
+    const response = await fetch(geojsonUrl)
+    const geojsonData = await response.json()
+
+    const centro = turf.point([Number(longitude), Number(latitude)])
+    const { raioVooDEC } = calcularRaioVoo({
+      tipoCadastro: businessData.role,
+    })
+    const buffer = turf.buffer(centro, raioVooDEC, { units: 'kilometers' })
+
+    const layers = geojsonData.features
+
+    // Verifica camadas do buffer
+    const featuresDentroBuffer = layers.filter((layer) => {
+      return turf.booleanIntersects(layer, buffer)
+    })
+
+    const areas = {}
+    featuresDentroBuffer.forEach((layer) => {
+      const nomeCamada = layer.properties.VEGETACAO
+      const area = parseFloat(layer.properties['AREA (Ha)'])
+      if (!areas[nomeCamada]) {
+        areas[nomeCamada] = 0
+      }
+      areas[nomeCamada] += area
+    })
+
+    const areaTotal =
+      (areas.URBANO || 0) + (areas.ARBUSTIVO || 0) + (areas.HERBACEO || 0)
+    const suporteApicultura = calcularCapacidadeSuporteApicultura(areaTotal)
+    const pasto = calcularCapacidadeSuporteMeliponicultura(
+      Number(areas.ARBOREO),
+    )
+
+    if (userData.role === 'APICULTOR') {
+      return suporteApicultura
+    } else if (userData.role === 'MELIPONICULTOR') {
+      return pasto
+    }
+  } catch (error) {
+    console.error('Erro ao processar GeoJSON:', error)
+  }
+}
+
 const Mapa = ({ userData, businessData, loading }) => {
   const mapContainer = useRef()
   const { latitude, longitude } = businessData[0]
@@ -85,8 +78,10 @@ const Mapa = ({ userData, businessData, loading }) => {
     if (!loading) {
       const lat = Number(latitude)
       const lng = Number(longitude)
-      console.log(lat, lng)
-      const map = L.map(mapContainer.current).setView([lat, lng], 12)
+      const map = L.map(mapContainer.current).setView(
+        [-2.5555334824608353, -44.208297729492195],
+        12,
+      )
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution:
@@ -170,9 +165,15 @@ const Mapa = ({ userData, businessData, loading }) => {
   ])
 
   useEffect(() => {
-    const kmls = processGeoJSON(json)
+    const kmls = processGeoJSON(
+      'https://raw.githubusercontent.com/mesquitadev/geobee-fe/main/src/components/Mapa/geobee.geojson',
+      latitude,
+      longitude,
+      businessData,
+      userData,
+    )
     console.log('kml', kmls)
-  }, [])
+  }, [businessData, latitude, longitude, userData])
 
   return <div className="w-full h-full" ref={mapContainer} />
 }

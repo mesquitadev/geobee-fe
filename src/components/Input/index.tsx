@@ -1,7 +1,7 @@
-import { forwardRef, useRef, useImperativeHandle } from 'react'
+import React, { forwardRef, useRef, useImperativeHandle } from 'react'
 import { Control, Controller } from 'react-hook-form'
 
-interface InputProps {
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   control: Control
   name: string
   type?: string
